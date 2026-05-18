@@ -45,3 +45,4 @@ GitHub OAuth. Один admin = owner GitHub username (`VP-network`). Public visi
 ## License
 
 Public dashboard, render-only. Strategy edge — в private backend repo.
+
