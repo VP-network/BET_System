@@ -1,9 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// GitHub Pages serves under /BET_System/ path.
-export default defineConfig({
-  base: process.env.NODE_ENV === "production" ? "/BET_System/" : "/",
+// GitHub Pages serves под /BET_System/ path. Локально под /.
+export default defineConfig(({ mode }) => ({
+  base: mode === "production" ? "/BET_System/" : "/",
   plugins: [react()],
   server: {
     port: 5173,
@@ -14,4 +14,4 @@ export default defineConfig({
     sourcemap: false,
     target: "es2022",
   },
-});
+}));
