@@ -1,0 +1,28 @@
+.ascii-box {
+  border: 1px solid #2a2a2a;
+  padding: 0.5rem 0.75rem;
+  background-color: #0a0a0a;
+}
+
+.ascii-box-title {
+  color: #FFA500;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.metric-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #39FF14;
+}
+
+.metric-value-warn { color: #FFA500; }
+.metric-value-loss { color: #FF3333; }
+
+.event-row {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.25rem;
+  border-bottom: 1px solid #1a1a1a;
+}
