@@ -58,8 +58,11 @@ function frameDetail(f: WsFrame): string {
       return `winner=${s(d.winning_side) || "?"}`;
     case "market_new":
       return `${s(d.asset)} ${s(d.close_time)}`;
-    case "capital":
+    case "capital": {
+      const act = s(d.action);
+      if (act) return `${act} $${s(d.amount_usd)} · free $${s(d.available_usd)}`;
       return `balance $${s(d.balance)}`;
+    }
     case "halt":
       return `HALT ${s(d.reason)}`;
     case "mode_toggle":
@@ -70,6 +73,9 @@ function frameDetail(f: WsFrame): string {
 }
 
 const TAPE_HIDDEN = new Set(["tick", "hello"]);
+// Лента — это «бегущая строка»: показываем только свежие события, без скролла.
+// Полная история живёт в журнале бота, не в UI.
+const TAPE_ROWS = 24;
 
 function frameTone(type: string): string {
   if (type === "fill" || type === "pnl") return "text-terminal-green";
@@ -84,7 +90,7 @@ export function Dashboard() {
 
   const boxes = metrics ? boxesFrom(metrics) : PLACEHOLDER_BOXES;
   const halt = metrics?.risk.halt;
-  const tape = frames.filter((f) => !TAPE_HIDDEN.has(f.type));
+  const tape = frames.filter((f) => !TAPE_HIDDEN.has(f.type)).slice(0, TAPE_ROWS);
 
   return (
     <div className="min-h-screen p-4">
@@ -125,12 +131,12 @@ export function Dashboard() {
         ))}
       </main>
 
-      <section className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-2">
-        <AsciiBox title="Event tape" className="lg:col-span-2">
+      <section className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-2 items-start">
+        <AsciiBox title={`Event tape · последние ${TAPE_ROWS}`} className="lg:col-span-2">
           {tape.length === 0 ? (
             <div className="text-xs text-terminal-muted">Ожидание событий…</div>
           ) : (
-            <div className="max-h-96 overflow-y-auto">
+            <div>
               {tape.map((f, i) => (
                 <div key={`${f.ts}-${i}`} className="event-row flex gap-2">
                   <span className="text-terminal-muted">
