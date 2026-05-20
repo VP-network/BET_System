@@ -4,6 +4,19 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const METRICS_REFRESH_MS = 5000;
 const TAPE_LIMIT = 60;
 
+/** Per-asset сводка (один инструмент: BTC/ETH/SOL/XRP). */
+export interface AssetStats {
+  bids_sent: number;
+  fills: number;
+  fill_rate: number;
+  windows_caught: number;
+  pending: number;
+  pnl_usd: number;
+  wins: number;
+  losses: number;
+  active_windows: number;
+}
+
 /** Subset of GET /api/metrics consumed by the dashboard. */
 export interface Metrics {
   status: string;
@@ -11,10 +24,24 @@ export interface Metrics {
   uptime_seconds: number;
   risk: { balance: number | null; halt: { active: boolean; reason: string } };
   capital: { balance_usd: number | null };
-  pnl: { realized_pnl_usd: number; markets_resolved: number };
-  orders: { bids_sent: number; fills: number; fill_rate: number; windows_caught: number };
+  pnl: {
+    realized_pnl_usd: number;
+    markets_resolved: number;
+    wins: number;
+    losses: number;
+    win_rate: number;
+  };
+  orders: {
+    bids_sent: number;
+    fills: number;
+    fill_rate: number;
+    windows_caught: number;
+    pending: number;
+    avg_fill_delay_ms: number;
+  };
   scheduler: { ticks: number; fires: number; halted: boolean };
   active_windows: number;
+  by_asset: Record<string, AssetStats>;
 }
 
 /** Server → client frame from /ws/dashboard. */
