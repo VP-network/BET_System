@@ -29,7 +29,10 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:8000' }}
+          # Permanent backend URL (Cloudflare Tunnel + own domain). The API URL
+          # is public — it ships in client JS — so no secret is needed; a repo
+          # secret can still override for staging.
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://bot.bet-system.win' }}
           VITE_APP_VERSION: ${{ github.sha }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
