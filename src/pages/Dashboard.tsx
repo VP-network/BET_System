@@ -1,6 +1,8 @@
 import clsx from "clsx";
+import { AdminPanel } from "../components/AdminPanel";
 import { AsciiBox } from "../components/AsciiBox";
 import {
+  useAdmin,
   useEventStream,
   useMetrics,
   type AssetStats,
@@ -115,6 +117,7 @@ function frameTone(type: string): string {
 export function Dashboard() {
   const { metrics, error } = useMetrics();
   const { frames, connected } = useEventStream();
+  const { isAdmin, refresh: refreshAdmin } = useAdmin();
 
   const boxes1 = metrics ? primaryBoxes(metrics) : placeholders(PRIMARY_LABELS);
   const boxes2 = metrics ? secondaryBoxes(metrics) : placeholders(SECONDARY_LABELS);
@@ -159,6 +162,8 @@ export function Dashboard() {
           <MetricBox key={box.label} box={box} />
         ))}
       </div>
+
+      <AdminPanel metrics={metrics} isAdmin={isAdmin} onAction={() => void refreshAdmin()} />
 
       <section className="mt-4">
         <div className="ascii-box-title mb-1">Per-asset</div>

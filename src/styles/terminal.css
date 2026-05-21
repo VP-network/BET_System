@@ -26,3 +26,68 @@
   padding: 0.125rem 0.25rem;
   border-bottom: 1px solid #1a1a1a;
 }
+
+/* --- admin controls --- */
+
+.term-input {
+  background-color: #000;
+  border: 1px solid #2a2a2a;
+  color: #57c97a;
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  width: 100%;
+}
+
+.term-input:focus {
+  outline: none;
+  border-color: #ffa500;
+}
+
+.term-input:disabled {
+  color: #555;
+}
+
+.term-btn {
+  background-color: #0a0a0a;
+  border: 1px solid #2a2a2a;
+  color: #cccccc;
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.term-btn:hover:not(:disabled) {
+  border-color: #ffa500;
+  color: #ffa500;
+}
+
+.term-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.term-btn-danger {
+  border-color: #ff3333;
+  color: #ff3333;
+}
+
+.term-btn-danger:hover:not(:disabled) {
+  background-color: #ff3333;
+  border-color: #ff3333;
+  color: #000;
+}
+
+.term-btn-go {
+  border-color: #57c97a;
+  color: #57c97a;
+}
+
+.term-btn-go:hover:not(:disabled) {
+  background-color: #57c97a;
+  border-color: #57c97a;
+  color: #000;
+}

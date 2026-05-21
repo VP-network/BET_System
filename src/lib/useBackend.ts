@@ -1,8 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const METRICS_REFRESH_MS = 5000;
 const TAPE_LIMIT = 60;
+
+/** Runtime-tunable parameters of Mode #21 (GET /api/metrics → tunables). */
+export interface Tunables {
+  per_side_size: number;
+  per_side_price: number;
+  gtd_after_close_s: number;
+  trigger_offset_s: number;
+  expiration_window_s: number;
+  per_window_max_usd: number;
+  per_day_loss_pct: number;
+}
 
 /** Per-asset сводка (один инструмент: BTC/ETH/SOL/XRP). */
 export interface AssetStats {
@@ -42,6 +53,8 @@ export interface Metrics {
   scheduler: { ticks: number; fires: number; halted: boolean };
   active_windows: number;
   by_asset: Record<string, AssetStats>;
+  /** Empty object {} when the runtime tuner is not running. */
+  tunables?: Tunables | Record<string, never>;
 }
 
 /** Server → client frame from /ws/dashboard. */
@@ -125,4 +138,70 @@ export function useEventStream(): { frames: WsFrame[]; connected: boolean } {
   }, []);
 
   return { frames, connected };
+}
+
+/** Admin session state. Checks the GitHub-OAuth cookie via /api/auth/me. */
+export function useAdmin(): {
+  isAdmin: boolean;
+  checked: boolean;
+  refresh: () => Promise<void>;
+} {
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    try {
+      const r = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
+      const body = (await r.json()) as { admin?: boolean };
+      setIsAdmin(Boolean(body.admin));
+    } catch {
+      setIsAdmin(false);
+    }
+    setChecked(true);
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  return { isAdmin, checked, refresh };
+}
+
+/** Result of an admin mutation — `error` carries the backend `detail` on failure. */
+export interface ActionResult {
+  ok: boolean;
+  error?: string;
+}
+
+async function adminPost(path: string, body?: unknown): Promise<ActionResult> {
+  try {
+    const r = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (r.ok) return { ok: true };
+    const detail = (await r.json().catch(() => ({}))) as { detail?: unknown };
+    const msg =
+      typeof detail.detail === "string" ? detail.detail : `HTTP ${r.status}`;
+    return { ok: false, error: msg };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+/** Patch Mode #21 runtime tunables (admin-only). Partial — only changed fields. */
+export function updateTunables(patch: Partial<Tunables>): Promise<ActionResult> {
+  return adminPost("/api/admin/tunables", patch);
+}
+
+/** Kill switch: stop the bot (manual halt — needs an explicit resume). */
+export function haltBot(): Promise<ActionResult> {
+  return adminPost("/api/admin/halt", { reason: "manual" });
+}
+
+/** Kill switch: clear the halt and let the bot trade again. */
+export function resumeBot(): Promise<ActionResult> {
+  return adminPost("/api/admin/resume");
 }
