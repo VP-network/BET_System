@@ -126,7 +126,7 @@ export function Dashboard() {
   const assets = metrics ? Object.entries(metrics.by_asset) : [];
 
   return (
-    <div className="min-h-screen p-4">
+    <div className="mx-auto min-h-screen max-w-[1200px] p-4">
       <header className="ascii-box mb-4">
         <div className="flex items-center justify-between">
           <div>
