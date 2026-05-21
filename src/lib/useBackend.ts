@@ -205,3 +205,8 @@ export function haltBot(): Promise<ActionResult> {
 export function resumeBot(): Promise<ActionResult> {
   return adminPost("/api/admin/resume");
 }
+
+/** End the admin session (clears the session cookie). */
+export function logoutAdmin(): Promise<ActionResult> {
+  return adminPost("/api/auth/logout");
+}

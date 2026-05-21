@@ -4,6 +4,7 @@ import { AsciiBox } from "./AsciiBox";
 import {
   API_URL,
   haltBot,
+  logoutAdmin,
   resumeBot,
   updateTunables,
   type Metrics,
@@ -147,6 +148,14 @@ export function AdminPanel({
     }
   };
 
+  const logout = async (): Promise<void> => {
+    setBusy(true);
+    await logoutAdmin();
+    setBusy(false);
+    setMsg({ ok: true, text: "✓ сессия завершена" });
+    onAction(); // refresh /me → панель снова read-only
+  };
+
   const halt = metrics?.risk.halt;
   const stopped = Boolean(halt?.active);
   const reason = halt?.reason ?? "";
@@ -177,14 +186,24 @@ export function AdminPanel({
             </span>
           </div>
           {isAdmin ? (
-            <button
-              type="button"
-              className={clsx("term-btn w-full", stopped ? "term-btn-go" : "term-btn-danger")}
-              disabled={busy}
-              onClick={() => void toggleBot()}
-            >
-              {stopped ? "▶ запустить бота" : "■ остановить бота"}
-            </button>
+            <div className="space-y-1">
+              <button
+                type="button"
+                className={clsx("term-btn w-full", stopped ? "term-btn-go" : "term-btn-danger")}
+                disabled={busy}
+                onClick={() => void toggleBot()}
+              >
+                {stopped ? "▶ запустить бота" : "■ остановить бота"}
+              </button>
+              <button
+                type="button"
+                className="term-btn w-full"
+                disabled={busy}
+                onClick={() => void logout()}
+              >
+                выход (admin)
+              </button>
+            </div>
           ) : (
             <div className="space-y-1">
               <a className="term-btn term-btn-go block text-center" href={`${API_URL}/api/auth/login`}>
