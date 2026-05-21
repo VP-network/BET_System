@@ -48,6 +48,19 @@
   color: #555;
 }
 
+/* Drop the native number-input spinner arrows — they clash with the
+   terminal aesthetic. Value is still typed/validated as a number. */
+.term-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.term-input[type="number"]::-webkit-outer-spin-button,
+.term-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .term-btn {
   background-color: #0a0a0a;
   border: 1px solid #2a2a2a;
