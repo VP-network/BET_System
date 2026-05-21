@@ -72,16 +72,13 @@ export function LossStreakGauge({ streak }: Props) {
         <circle cx={CX} cy={CY} r={5} fill="#FF3333" />
         <text
           x={CX}
-          y={84}
+          y={78}
           textAnchor="middle"
           fill="#FF3333"
-          fontSize={26}
+          fontSize={15}
           fontWeight={700}
         >
           {current}
-        </text>
-        <text x={CX} y={100} textAnchor="middle" fill="#666666" fontSize={9}>
-          проигрышей подряд
         </text>
         <text
           x={CX - 82}
