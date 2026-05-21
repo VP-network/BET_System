@@ -26,6 +26,17 @@ export interface AssetStats {
   wins: number;
   losses: number;
   active_windows: number;
+  /** Среднее submit→fill только по выигрышным сделкам, ms. */
+  avg_fill_delay_wins_ms: number;
+  /** Realtime bid/ask spread (сумма up+down), $. null — стакан недоступен. */
+  spread: number | null;
+}
+
+/** Серия проигрышных сделок подряд — для полукруглого gauge. */
+export interface LossStreak {
+  current: number;
+  scale_max: number;
+  top5: number[];
 }
 
 /** Subset of GET /api/metrics consumed by the dashboard. */
@@ -41,6 +52,7 @@ export interface Metrics {
     wins: number;
     losses: number;
     win_rate: number;
+    loss_streak: LossStreak;
   };
   orders: {
     bids_sent: number;
@@ -49,10 +61,13 @@ export interface Metrics {
     windows_caught: number;
     pending: number;
     avg_fill_delay_ms: number;
+    avg_fill_delay_wins_ms: number;
   };
   scheduler: { ticks: number; fires: number; halted: boolean };
   active_windows: number;
   by_asset: Record<string, AssetStats>;
+  /** 24 часовых бина выигрышных fill'ов по Киеву, на каждый инструмент. */
+  wins_by_hour: Record<string, number[]>;
   /** Empty object {} when the runtime tuner is not running. */
   tunables?: Tunables | Record<string, never>;
 }
@@ -65,7 +80,10 @@ export interface WsFrame {
 }
 
 /** Polls /api/metrics every 5s (matches backend metrics_refresh_ms). */
-export function useMetrics(): { metrics: Metrics | null; error: string | null } {
+export function useMetrics(): {
+  metrics: Metrics | null;
+  error: string | null;
+} {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,7 +169,9 @@ export function useAdmin(): {
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const r = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
+      const r = await fetch(`${API_URL}/api/auth/me`, {
+        credentials: "include",
+      });
       const body = (await r.json()) as { admin?: boolean };
       setIsAdmin(Boolean(body.admin));
     } catch {
@@ -178,7 +198,8 @@ async function adminPost(path: string, body?: unknown): Promise<ActionResult> {
     const r = await fetch(`${API_URL}${path}`, {
       method: "POST",
       credentials: "include",
-      headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      headers:
+        body !== undefined ? { "Content-Type": "application/json" } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     if (r.ok) return { ok: true };
@@ -192,7 +213,9 @@ async function adminPost(path: string, body?: unknown): Promise<ActionResult> {
 }
 
 /** Patch Mode #21 runtime tunables (admin-only). Partial — only changed fields. */
-export function updateTunables(patch: Partial<Tunables>): Promise<ActionResult> {
+export function updateTunables(
+  patch: Partial<Tunables>,
+): Promise<ActionResult> {
   return adminPost("/api/admin/tunables", patch);
 }
 

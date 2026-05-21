@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { AdminPanel } from "../components/AdminPanel";
 import { AsciiBox } from "../components/AsciiBox";
+import { HourHistogram } from "../components/HourHistogram";
+import { LossStreakGauge } from "../components/LossStreakGauge";
 import {
   useAdmin,
   useEventStream,
@@ -39,7 +41,10 @@ function primaryBoxes(m: Metrics): Box[] {
   const balance = m.capital.balance_usd ?? m.risk.balance;
   const pnl = m.pnl.realized_pnl_usd;
   return [
-    { label: "BALANCE", value: balance != null ? `$${balance.toFixed(2)}` : "—" },
+    {
+      label: "BALANCE",
+      value: balance != null ? `$${balance.toFixed(2)}` : "—",
+    },
     { label: "BIDS SENT", value: String(m.orders.bids_sent) },
     { label: "FILLS", value: String(m.orders.fills) },
     { label: "FILL RATE", value: `${(m.orders.fill_rate * 100).toFixed(1)}%` },
@@ -56,6 +61,10 @@ function secondaryBoxes(m: Metrics): Box[] {
     { label: "WIN RATE", value: `${(m.pnl.win_rate * 100).toFixed(1)}%` },
     { label: "PENDING", value: String(m.orders.pending) },
     { label: "AVG FILL DELAY", value: fmtDelay(m.orders.avg_fill_delay_ms) },
+    {
+      label: "AVG FILL DELAY · WIN",
+      value: fmtDelay(m.orders.avg_fill_delay_wins_ms),
+    },
   ];
 }
 
@@ -68,7 +77,13 @@ const PRIMARY_LABELS = [
   "WINDOWS CAUGHT",
   "PNL",
 ];
-const SECONDARY_LABELS = ["W / L", "WIN RATE", "PENDING", "AVG FILL DELAY"];
+const SECONDARY_LABELS = [
+  "W / L",
+  "WIN RATE",
+  "PENDING",
+  "AVG FILL DELAY",
+  "AVG FILL DELAY · WIN",
+];
 
 function placeholders(labels: string[]): Box[] {
   return labels.map((label) => ({ label, value: "—" }));
@@ -78,8 +93,12 @@ function placeholders(labels: string[]): Box[] {
 function frameDetail(f: WsFrame): string {
   const d = f.data;
   switch (f.type) {
-    case "fill":
-      return `${s(d.asset)} ${s(d.side)} ${s(d.size)}sh @ $${s(d.price)}`;
+    case "fill": {
+      const base = `${s(d.asset)} ${s(d.side)} ${s(d.size)}sh @ $${s(d.price)}`;
+      const ws = d.window_second;
+      // Секунда нового окна, в которую сел fill (close → fill).
+      return ws == null ? base : `${base} · окно +${Math.round(Number(ws))}s`;
+    }
     case "order":
       return `${s(d.asset)} ${s(d.side)} ${s(d.status)}`;
     case "pnl":
@@ -90,7 +109,8 @@ function frameDetail(f: WsFrame): string {
       return `${s(d.asset)} ${s(d.close_time)}`;
     case "capital": {
       const act = s(d.action);
-      if (act) return `${act} $${s(d.amount_usd)} · free $${s(d.available_usd)}`;
+      if (act)
+        return `${act} $${s(d.amount_usd)} · free $${s(d.available_usd)}`;
       return `balance $${s(d.balance)}`;
     }
     case "halt":
@@ -120,9 +140,13 @@ export function Dashboard() {
   const { isAdmin, refresh: refreshAdmin } = useAdmin();
 
   const boxes1 = metrics ? primaryBoxes(metrics) : placeholders(PRIMARY_LABELS);
-  const boxes2 = metrics ? secondaryBoxes(metrics) : placeholders(SECONDARY_LABELS);
+  const boxes2 = metrics
+    ? secondaryBoxes(metrics)
+    : placeholders(SECONDARY_LABELS);
   const halt = metrics?.risk.halt;
-  const tape = frames.filter((f) => !TAPE_HIDDEN.has(f.type)).slice(0, TAPE_ROWS);
+  const tape = frames
+    .filter((f) => !TAPE_HIDDEN.has(f.type))
+    .slice(0, TAPE_ROWS);
   const assets = metrics ? Object.entries(metrics.by_asset) : [];
 
   return (
@@ -130,9 +154,13 @@ export function Dashboard() {
       <header className="ascii-box mb-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="ascii-box-title">BET_SYSTEM // POLYMARKET 5M FRONTIER MONITOR</div>
+            <div className="ascii-box-title">
+              BET_SYSTEM // POLYMARKET 5M FRONTIER MONITOR
+            </div>
             <div className="text-terminal-muted text-xs mt-1">
-              {metrics ? `${metrics.mode} · uptime ${metrics.uptime_seconds}s · ` : ""}
+              {metrics
+                ? `${metrics.mode} · uptime ${metrics.uptime_seconds}s · `
+                : ""}
               v{APP_VERSION}
             </div>
           </div>
@@ -146,7 +174,9 @@ export function Dashboard() {
             ) : (
               <span className="text-terminal-orange">● CONNECTING…</span>
             )}
-            {halt?.active && <div className="text-terminal-red mt-1">HALT: {halt.reason}</div>}
+            {halt?.active && (
+              <div className="text-terminal-red mt-1">HALT: {halt.reason}</div>
+            )}
           </div>
         </div>
       </header>
@@ -157,13 +187,17 @@ export function Dashboard() {
         ))}
       </main>
 
-      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-2">
         {boxes2.map((box) => (
           <MetricBox key={box.label} box={box} />
         ))}
       </div>
 
-      <AdminPanel metrics={metrics} isAdmin={isAdmin} onAction={() => void refreshAdmin()} />
+      <AdminPanel
+        metrics={metrics}
+        isAdmin={isAdmin}
+        onAction={() => void refreshAdmin()}
+      />
 
       <section className="mt-4">
         <div className="ascii-box-title mb-1">Per-asset</div>
@@ -174,12 +208,36 @@ export function Dashboard() {
                   <div className="text-xs text-terminal-muted">—</div>
                 </AsciiBox>
               ))
-            : assets.map(([asset, a]) => <AssetPanel key={asset} asset={asset} a={a} />)}
+            : assets.map(([asset, a]) => (
+                <AssetPanel key={asset} asset={asset} a={a} />
+              ))}
         </div>
       </section>
 
       <section className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-2 items-start">
-        <AsciiBox title={`Event tape · последние ${TAPE_ROWS}`} className="lg:col-span-2">
+        <div className="lg:col-span-2">
+          {metrics ? (
+            <HourHistogram winsByHour={metrics.wins_by_hour} />
+          ) : (
+            <AsciiBox title="Wins by hour · Kyiv">
+              <div className="text-xs text-terminal-muted">—</div>
+            </AsciiBox>
+          )}
+        </div>
+        {metrics ? (
+          <LossStreakGauge streak={metrics.pnl.loss_streak} />
+        ) : (
+          <AsciiBox title="Loss streak">
+            <div className="text-xs text-terminal-muted">—</div>
+          </AsciiBox>
+        )}
+      </section>
+
+      <section className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-2 items-start">
+        <AsciiBox
+          title={`Event tape · последние ${TAPE_ROWS}`}
+          className="lg:col-span-2"
+        >
           {tape.length === 0 ? (
             <div className="text-xs text-terminal-muted">Ожидание событий…</div>
           ) : (
@@ -189,10 +247,17 @@ export function Dashboard() {
                   <span className="text-terminal-muted">
                     {new Date(f.ts).toLocaleTimeString()}
                   </span>
-                  <span className={clsx("w-32 shrink-0 uppercase", frameTone(f.type))}>
+                  <span
+                    className={clsx(
+                      "w-32 shrink-0 uppercase",
+                      frameTone(f.type),
+                    )}
+                  >
                     {f.type}
                   </span>
-                  <span className="text-terminal-green truncate">{frameDetail(f)}</span>
+                  <span className="text-terminal-green truncate">
+                    {frameDetail(f)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -204,8 +269,14 @@ export function Dashboard() {
             <div className="text-xs space-y-1">
               <Row label="ticks" value={String(metrics.scheduler.ticks)} />
               <Row label="fires" value={String(metrics.scheduler.fires)} />
-              <Row label="halted" value={metrics.scheduler.halted ? "yes" : "no"} />
-              <Row label="markets resolved" value={String(metrics.pnl.markets_resolved)} />
+              <Row
+                label="halted"
+                value={metrics.scheduler.halted ? "yes" : "no"}
+              />
+              <Row
+                label="markets resolved"
+                value={String(metrics.pnl.markets_resolved)}
+              />
             </div>
           ) : (
             <div className="text-xs text-terminal-muted">
@@ -222,7 +293,9 @@ function MetricBox({ box }: { box: Box }) {
   return (
     <div className="ascii-box">
       <div className="ascii-box-title">{box.label}</div>
-      <div className={clsx("metric-value", box.loss && "metric-value-loss")}>{box.value}</div>
+      <div className={clsx("metric-value", box.loss && "metric-value-loss")}>
+        {box.value}
+      </div>
     </div>
   );
 }
@@ -236,6 +309,14 @@ function AssetPanel({ asset, a }: { asset: string; a: AssetStats }) {
         <Row label="fill rate" value={`${(a.fill_rate * 100).toFixed(1)}%`} />
         <Row label="caught" value={String(a.windows_caught)} />
         <Row label="pending" value={String(a.pending)} />
+        <Row
+          label="avg fill · win"
+          value={fmtDelay(a.avg_fill_delay_wins_ms)}
+        />
+        <Row
+          label="spread"
+          value={a.spread != null ? `$${a.spread.toFixed(2)}` : "—"}
+        />
         <Row label="W / L" value={`${a.wins} / ${a.losses}`} />
         <Row label="pnl" value={usd(a.pnl_usd)} loss={a.pnl_usd < 0} />
       </div>
@@ -243,11 +324,21 @@ function AssetPanel({ asset, a }: { asset: string; a: AssetStats }) {
   );
 }
 
-function Row({ label, value, loss }: { label: string; value: string; loss?: boolean }) {
+function Row({
+  label,
+  value,
+  loss,
+}: {
+  label: string;
+  value: string;
+  loss?: boolean;
+}) {
   return (
     <div className="flex justify-between">
       <span className="text-terminal-muted">{label}</span>
-      <span className={loss ? "text-terminal-red" : "text-terminal-green"}>{value}</span>
+      <span className={loss ? "text-terminal-red" : "text-terminal-green"}>
+        {value}
+      </span>
     </div>
   );
 }
