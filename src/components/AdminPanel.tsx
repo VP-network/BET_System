@@ -6,10 +6,17 @@ import {
   haltBot,
   logoutAdmin,
   resumeBot,
+  toggleMode,
   updateTunables,
   type Metrics,
   type Tunables,
 } from "../lib/useBackend";
+
+/** Global switch: exactly one of these trades at a time (#21 ↔ #20). */
+const SWITCHABLE_MODES: { mode: string; label: string }[] = [
+  { mode: "window_switch", label: "#21 CLOSE" },
+  { mode: "pre_fill", label: "#20 FRONTIER" },
+];
 
 interface FieldSpec {
   key: keyof Tunables;
@@ -175,6 +182,34 @@ export function AdminPanel({
     }
   };
 
+  const modeFlags = metrics?.modes ?? {};
+  const activeMode = SWITCHABLE_MODES.find((m) => modeFlags[m.mode])?.mode ?? null;
+
+  const switchTo = async (target: string): Promise<void> => {
+    if (target === activeMode) return;
+    const label = SWITCHABLE_MODES.find((m) => m.mode === target)?.label ?? target;
+    if (!window.confirm(`Переключить режим на ${label}? Текущий режим выключится.`))
+      return;
+    setBusy(true);
+    // Disable the other mode first — a brief no-trade gap is safer than a
+    // moment with both modes armed. Persists across restart (mode_flags.json).
+    let res: { ok: boolean; error?: string } = { ok: true };
+    for (const m of SWITCHABLE_MODES) {
+      if (m.mode !== target && modeFlags[m.mode]) {
+        res = await toggleMode(m.mode, false);
+        if (!res.ok) break;
+      }
+    }
+    if (res.ok) res = await toggleMode(target, true);
+    setBusy(false);
+    if (res.ok) {
+      setMsg({ ok: true, text: `✓ режим → ${label}` });
+      onAction();
+    } else {
+      setMsg({ ok: false, text: res.error ?? "ошибка" });
+    }
+  };
+
   return (
     <section className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-2 items-start">
       <AsciiBox title="Bot control">
@@ -184,6 +219,31 @@ export function AdminPanel({
             <span className={stopped ? "text-terminal-red" : "text-terminal-green"}>
               {stopped ? `STOPPED · ${reason}` : "RUNNING"}
             </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-terminal-muted">режим</span>
+            <span className="text-terminal-green">
+              {SWITCHABLE_MODES.find((m) => m.mode === activeMode)?.label ?? "—"}
+            </span>
+          </div>
+          <div className="space-y-1">
+            <div className="text-terminal-muted">переключение режима</div>
+            <div className="flex gap-1">
+              {SWITCHABLE_MODES.map((m) => (
+                <button
+                  key={m.mode}
+                  type="button"
+                  className={clsx(
+                    "term-btn flex-1",
+                    m.mode === activeMode && "term-btn-go",
+                  )}
+                  disabled={!isAdmin || busy || m.mode === activeMode}
+                  onClick={() => void switchTo(m.mode)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
           {isAdmin ? (
             <div className="space-y-1">

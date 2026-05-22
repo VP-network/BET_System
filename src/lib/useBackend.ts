@@ -64,6 +64,8 @@ export interface Metrics {
     avg_fill_delay_wins_ms: number;
   };
   scheduler: { ticks: number; fires: number; halted: boolean };
+  /** Per-mode enable flags from the kill switch ({window_switch, pre_fill, ...}). */
+  modes: Record<string, boolean>;
   active_windows: number;
   by_asset: Record<string, AssetStats>;
   /** 24 часовых бина выигрышных fill'ов по Киеву, на каждый инструмент. */
@@ -217,6 +219,14 @@ export function updateTunables(
   patch: Partial<Tunables>,
 ): Promise<ActionResult> {
   return adminPost("/api/admin/tunables", patch);
+}
+
+/** Enable/disable one trading mode (admin-only). Persists across restart. */
+export function toggleMode(
+  mode: string,
+  enabled: boolean,
+): Promise<ActionResult> {
+  return adminPost(`/api/admin/modes/${mode}/toggle`, { enabled });
 }
 
 /** Kill switch: stop the bot (manual halt — needs an explicit resume). */
