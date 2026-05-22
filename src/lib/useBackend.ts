@@ -32,7 +32,7 @@ export interface AssetStats {
   active_windows: number;
   /** Среднее submit→fill только по выигрышным сделкам, ms. */
   avg_fill_delay_wins_ms: number;
-  /** Среднее положение fill относительно close окна (выигрышные), сек. null — нет данных. */
+  /** Средняя секунда окна (от старта) наполнения выигрышных сделок. null — нет данных. */
   avg_window_second_wins: number | null;
   /** Realtime bid/ask spread (сумма up+down), $. null — стакан недоступен. */
   spread: number | null;
@@ -68,8 +68,8 @@ export interface Metrics {
     pending: number;
     avg_fill_delay_ms: number;
     avg_fill_delay_wins_ms: number;
-    /** Среднее положение fill относительно close окна, сек (− до close, + после).
-     *  Сравнимо между #21 и #20. null — нет filled-ордеров. */
+    /** Средняя секунда окна (отсчёт от старта окна), на которой наполняются
+     *  ордера. Для 5-мин окна типично 200-300+ сек. null — нет filled-ордеров. */
     avg_window_second: number | null;
     avg_window_second_wins: number | null;
   };

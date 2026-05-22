@@ -24,10 +24,18 @@ function usd(v: number): string {
   return `${v < 0 ? "-" : ""}$${Math.abs(v).toFixed(2)}`;
 }
 
-/** Fill position vs window close, sec: − before close, + after. — when no data. */
-function fmtOffset(s: number | null): string {
+/** Секунда окна, в которую сел fill — отсчёт от старта окна (0 = открытие).
+ *  Для 5-мин окна типично 200-300+ сек. — когда данных нет. */
+function fmtWindowSec(s: number | null): string {
   if (s == null) return "—";
-  return `${s > 0 ? "+" : ""}${s}s`;
+  return `${Math.round(s)}s`;
+}
+
+/** Время HH:MM из unix-ms — для ярлыка окна в ленте. */
+function fmtHM(ms: unknown): string {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return new Date(n).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 interface Box {
@@ -56,16 +64,15 @@ function primaryBoxes(m: Metrics): Box[] {
 
 /** Вторичный ряд: исходы и состояние очереди ордеров. */
 function secondaryBoxes(m: Metrics): Box[] {
-  // Fill position vs window close — comparable across #21/#20: #21 ~ +11s
-  // (just after close), #20 negative (filled inside the window).
+  // Среднее: на какой секунде окна (от его старта) наполняются ордера.
   return [
     { label: "W / L", value: `${m.pnl.wins} / ${m.pnl.losses}` },
     { label: "WIN RATE", value: `${(m.pnl.win_rate * 100).toFixed(1)}%` },
     { label: "PENDING", value: String(m.orders.pending) },
-    { label: "AVG FILL vs CLOSE", value: fmtOffset(m.orders.avg_window_second) },
+    { label: "AVG FILL · СЕК ОКНА", value: fmtWindowSec(m.orders.avg_window_second) },
     {
-      label: "AVG FILL vs CLOSE · WIN",
-      value: fmtOffset(m.orders.avg_window_second_wins),
+      label: "AVG FILL · СЕК ОКНА · WIN",
+      value: fmtWindowSec(m.orders.avg_window_second_wins),
     },
   ];
 }
@@ -83,8 +90,8 @@ const SECONDARY_LABELS = [
   "W / L",
   "WIN RATE",
   "PENDING",
-  "AVG FILL vs CLOSE",
-  "AVG FILL vs CLOSE · WIN",
+  "AVG FILL · СЕК ОКНА",
+  "AVG FILL · СЕК ОКНА · WIN",
 ];
 
 function placeholders(labels: string[]): Box[] {
@@ -98,8 +105,13 @@ function frameDetail(f: WsFrame): string {
     case "fill": {
       const base = `${s(d.asset)} ${s(d.side)} ${s(d.size)}sh @ $${s(d.price)}`;
       const ws = d.window_second;
-      // Секунда нового окна, в которую сел fill (close → fill).
-      return ws == null ? base : `${base} · окно +${Math.round(Number(ws))}s`;
+      // Секунда окна (от старта) + ярлык пятиминутки, к которой относится fill.
+      const open = fmtHM(d.window_open_ms);
+      const close = fmtHM(d.window_close_ms);
+      const label = open && close ? ` (${open}–${close})` : "";
+      return ws == null
+        ? `${base}${label}`
+        : `${base} · окно ${Math.round(Number(ws))}s${label}`;
     }
     case "order":
       return `${s(d.asset)} ${s(d.side)} ${s(d.status)}`;
@@ -312,8 +324,8 @@ function AssetPanel({ asset, a }: { asset: string; a: AssetStats }) {
         <Row label="caught" value={String(a.windows_caught)} />
         <Row label="pending" value={String(a.pending)} />
         <Row
-          label="fill vs close · win"
-          value={fmtOffset(a.avg_window_second_wins)}
+          label="сек окна · win"
+          value={fmtWindowSec(a.avg_window_second_wins)}
         />
         <Row
           label="spread"
