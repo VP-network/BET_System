@@ -54,15 +54,23 @@ function primaryBoxes(m: Metrics): Box[] {
   ];
 }
 
+/** True когда активен режим #20 (frontier-вход). */
+function isFrontier(m: Metrics): boolean {
+  return Boolean(m.modes.pre_fill);
+}
+
 /** Вторичный ряд: исходы и состояние очереди ордеров. */
 function secondaryBoxes(m: Metrics): Box[] {
+  // #20 ставит ордера задолго до close → submit→fill это «время лёжки в
+  // стакане», а не задержка. Метка подстраивается под активный режим.
+  const delayLabel = isFrontier(m) ? "AVG REST TIME" : "AVG FILL DELAY";
   return [
     { label: "W / L", value: `${m.pnl.wins} / ${m.pnl.losses}` },
     { label: "WIN RATE", value: `${(m.pnl.win_rate * 100).toFixed(1)}%` },
     { label: "PENDING", value: String(m.orders.pending) },
-    { label: "AVG FILL DELAY", value: fmtDelay(m.orders.avg_fill_delay_ms) },
+    { label: delayLabel, value: fmtDelay(m.orders.avg_fill_delay_ms) },
     {
-      label: "AVG FILL DELAY · WIN",
+      label: `${delayLabel} · WIN`,
       value: fmtDelay(m.orders.avg_fill_delay_wins_ms),
     },
   ];
@@ -209,7 +217,12 @@ export function Dashboard() {
                 </AsciiBox>
               ))
             : assets.map(([asset, a]) => (
-                <AssetPanel key={asset} asset={asset} a={a} />
+                <AssetPanel
+                  key={asset}
+                  asset={asset}
+                  a={a}
+                  frontier={Boolean(metrics && isFrontier(metrics))}
+                />
               ))}
         </div>
       </section>
@@ -300,7 +313,15 @@ function MetricBox({ box }: { box: Box }) {
   );
 }
 
-function AssetPanel({ asset, a }: { asset: string; a: AssetStats }) {
+function AssetPanel({
+  asset,
+  a,
+  frontier,
+}: {
+  asset: string;
+  a: AssetStats;
+  frontier: boolean;
+}) {
   return (
     <AsciiBox title={asset}>
       <div className="text-xs space-y-1">
@@ -310,7 +331,7 @@ function AssetPanel({ asset, a }: { asset: string; a: AssetStats }) {
         <Row label="caught" value={String(a.windows_caught)} />
         <Row label="pending" value={String(a.pending)} />
         <Row
-          label="avg fill · win"
+          label={frontier ? "avg rest · win" : "avg fill · win"}
           value={fmtDelay(a.avg_fill_delay_wins_ms)}
         />
         <Row
