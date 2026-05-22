@@ -24,10 +24,10 @@ function usd(v: number): string {
   return `${v < 0 ? "-" : ""}$${Math.abs(v).toFixed(2)}`;
 }
 
-/** Fill delay: ms under 1s, seconds above. */
-function fmtDelay(ms: number): string {
-  if (ms <= 0) return "—";
-  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+/** Fill position vs window close, sec: − before close, + after. — when no data. */
+function fmtOffset(s: number | null): string {
+  if (s == null) return "—";
+  return `${s > 0 ? "+" : ""}${s}s`;
 }
 
 interface Box {
@@ -54,24 +54,18 @@ function primaryBoxes(m: Metrics): Box[] {
   ];
 }
 
-/** True когда активен режим #20 (frontier-вход). */
-function isFrontier(m: Metrics): boolean {
-  return Boolean(m.modes.pre_fill);
-}
-
 /** Вторичный ряд: исходы и состояние очереди ордеров. */
 function secondaryBoxes(m: Metrics): Box[] {
-  // #20 ставит ордера задолго до close → submit→fill это «время лёжки в
-  // стакане», а не задержка. Метка подстраивается под активный режим.
-  const delayLabel = isFrontier(m) ? "AVG REST TIME" : "AVG FILL DELAY";
+  // Fill position vs window close — comparable across #21/#20: #21 ~ +11s
+  // (just after close), #20 negative (filled inside the window).
   return [
     { label: "W / L", value: `${m.pnl.wins} / ${m.pnl.losses}` },
     { label: "WIN RATE", value: `${(m.pnl.win_rate * 100).toFixed(1)}%` },
     { label: "PENDING", value: String(m.orders.pending) },
-    { label: delayLabel, value: fmtDelay(m.orders.avg_fill_delay_ms) },
+    { label: "AVG FILL vs CLOSE", value: fmtOffset(m.orders.avg_window_second) },
     {
-      label: `${delayLabel} · WIN`,
-      value: fmtDelay(m.orders.avg_fill_delay_wins_ms),
+      label: "AVG FILL vs CLOSE · WIN",
+      value: fmtOffset(m.orders.avg_window_second_wins),
     },
   ];
 }
@@ -89,8 +83,8 @@ const SECONDARY_LABELS = [
   "W / L",
   "WIN RATE",
   "PENDING",
-  "AVG FILL DELAY",
-  "AVG FILL DELAY · WIN",
+  "AVG FILL vs CLOSE",
+  "AVG FILL vs CLOSE · WIN",
 ];
 
 function placeholders(labels: string[]): Box[] {
@@ -217,12 +211,7 @@ export function Dashboard() {
                 </AsciiBox>
               ))
             : assets.map(([asset, a]) => (
-                <AssetPanel
-                  key={asset}
-                  asset={asset}
-                  a={a}
-                  frontier={Boolean(metrics && isFrontier(metrics))}
-                />
+                <AssetPanel key={asset} asset={asset} a={a} />
               ))}
         </div>
       </section>
@@ -313,15 +302,7 @@ function MetricBox({ box }: { box: Box }) {
   );
 }
 
-function AssetPanel({
-  asset,
-  a,
-  frontier,
-}: {
-  asset: string;
-  a: AssetStats;
-  frontier: boolean;
-}) {
+function AssetPanel({ asset, a }: { asset: string; a: AssetStats }) {
   return (
     <AsciiBox title={asset}>
       <div className="text-xs space-y-1">
@@ -331,8 +312,8 @@ function AssetPanel({
         <Row label="caught" value={String(a.windows_caught)} />
         <Row label="pending" value={String(a.pending)} />
         <Row
-          label={frontier ? "avg rest · win" : "avg fill · win"}
-          value={fmtDelay(a.avg_fill_delay_wins_ms)}
+          label="fill vs close · win"
+          value={fmtOffset(a.avg_window_second_wins)}
         />
         <Row
           label="spread"
