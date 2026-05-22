@@ -4,13 +4,17 @@ export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const METRICS_REFRESH_MS = 5000;
 const TAPE_LIMIT = 60;
 
-/** Runtime-tunable parameters of Mode #21 (GET /api/metrics → tunables). */
+/** Runtime-tunable parameters (GET /api/metrics → tunables). One shared set:
+ *  5 fields apply to both modes, trigger/expiration are #21-only, the lead
+ *  pair is #20-only. */
 export interface Tunables {
   per_side_size: number;
   per_side_price: number;
   gtd_after_close_s: number;
   trigger_offset_s: number;
   expiration_window_s: number;
+  min_lead_time_s: number;
+  max_lead_time_s: number;
   per_window_max_usd: number;
   per_day_loss_pct: number;
 }

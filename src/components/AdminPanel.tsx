@@ -18,6 +18,9 @@ const SWITCHABLE_MODES: { mode: string; label: string }[] = [
   { mode: "pre_fill", label: "#20 FRONTIER" },
 ];
 
+type ModeKey = "window_switch" | "pre_fill";
+const BOTH: ModeKey[] = ["window_switch", "pre_fill"];
+
 interface FieldSpec {
   key: keyof Tunables;
   label: string;
@@ -25,16 +28,19 @@ interface FieldSpec {
   /** UI value = stored × scale. per_day_loss_pct stored as fraction, shown as %. */
   scale: number;
   hint: string;
+  /** Modes this knob applies to — the form shows only the active mode's set. */
+  modes: ModeKey[];
 }
 
 const FIELDS: FieldSpec[] = [
-  { key: "per_side_size", label: "PER SIDE SIZE", step: "1", scale: 1, hint: "шер на сторону, ≥1" },
+  { key: "per_side_size", label: "PER SIDE SIZE", step: "1", scale: 1, hint: "шер на сторону, ≥1", modes: BOTH },
   {
     key: "per_side_price",
     label: "PER SIDE PRICE",
     step: "0.01",
     scale: 1,
     hint: "цена входа $, кратно 0.01",
+    modes: BOTH,
   },
   {
     key: "gtd_after_close_s",
@@ -42,20 +48,39 @@ const FIELDS: FieldSpec[] = [
     step: "1",
     scale: 1,
     hint: "GTD = close + N сек",
+    modes: BOTH,
   },
   {
     key: "trigger_offset_s",
     label: "TRIGGER OFFSET",
     step: "0.1",
     scale: 1,
-    hint: "сек vs close (− = раньше)",
+    hint: "#21: сек vs close (− = раньше)",
+    modes: ["window_switch"],
   },
   {
     key: "expiration_window_s",
     label: "EXPIRATION WINDOW",
     step: "0.5",
     scale: 1,
-    hint: "сек после close ещё стрелять",
+    hint: "#21: сек после close ещё стрелять",
+    modes: ["window_switch"],
+  },
+  {
+    key: "min_lead_time_s",
+    label: "MIN LEAD TIME",
+    step: "1",
+    scale: 1,
+    hint: "#20: мин. runway чтобы стрелять, сек",
+    modes: ["pre_fill"],
+  },
+  {
+    key: "max_lead_time_s",
+    label: "MAX LEAD TIME",
+    step: "10",
+    scale: 1,
+    hint: "#20: потолок lead входа, сек",
+    modes: ["pre_fill"],
   },
   {
     key: "per_window_max_usd",
@@ -63,6 +88,7 @@ const FIELDS: FieldSpec[] = [
     step: "0.5",
     scale: 1,
     hint: "кап капитала на окно, $",
+    modes: BOTH,
   },
   {
     key: "per_day_loss_pct",
@@ -70,6 +96,7 @@ const FIELDS: FieldSpec[] = [
     step: "0.5",
     scale: 100,
     hint: "дневной риск-стоп, %",
+    modes: BOTH,
   },
 ];
 
@@ -108,6 +135,14 @@ export function AdminPanel({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Active mode drives which tunables the form shows (global switch — one at
+  // a time). No mode active (e.g. halted) → fall back to the #21 set.
+  const modeFlags = metrics?.modes ?? {};
+  const activeMode = SWITCHABLE_MODES.find((m) => modeFlags[m.mode])?.mode ?? null;
+  const modeKey: ModeKey = activeMode === "pre_fill" ? "pre_fill" : "window_switch";
+  const modeNum = modeKey === "pre_fill" ? "20" : "21";
+  const visibleFields = FIELDS.filter((f) => f.modes.includes(modeKey));
+
   // Re-sync the form from live metrics — but never clobber unsaved edits.
   const tunablesJson = tunables ? JSON.stringify(tunables) : "";
   useEffect(() => {
@@ -130,7 +165,7 @@ export function AdminPanel({
   const save = async (): Promise<void> => {
     if (!edit || !tunables) return;
     const patch: Partial<Tunables> = {};
-    for (const f of FIELDS) {
+    for (const f of visibleFields) {
       const raw = parseFloat(edit[f.key]);
       if (Number.isNaN(raw)) {
         setMsg({ ok: false, text: `${f.label}: не число` });
@@ -181,9 +216,6 @@ export function AdminPanel({
       setMsg({ ok: false, text: res.error ?? "ошибка" });
     }
   };
-
-  const modeFlags = metrics?.modes ?? {};
-  const activeMode = SWITCHABLE_MODES.find((m) => modeFlags[m.mode])?.mode ?? null;
 
   const switchTo = async (target: string): Promise<void> => {
     if (target === activeMode) return;
@@ -278,14 +310,14 @@ export function AdminPanel({
         </div>
       </AsciiBox>
 
-      <AsciiBox title="Mode #21 tuning" className="lg:col-span-2">
+      <AsciiBox title={`Mode #${modeNum} tuning`} className="lg:col-span-2">
         {!tunables ? (
           <div className="text-xs text-terminal-muted">тюнер недоступен (бот не запущен)</div>
         ) : (
           <div className="text-xs">
             <table className="w-full">
               <tbody>
-                {FIELDS.map((f) => (
+                {visibleFields.map((f) => (
                   <tr key={f.key}>
                     <td className="text-terminal-muted py-0.5 pr-2 whitespace-nowrap">
                       {f.label}
