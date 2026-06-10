@@ -3,6 +3,7 @@ import { AdminPanel } from "../components/AdminPanel";
 import { AsciiBox } from "../components/AsciiBox";
 import { HourHistogram } from "../components/HourHistogram";
 import { LossStreakGauge } from "../components/LossStreakGauge";
+import { RecorderStatusBox } from "../components/RecorderStatus";
 import {
   useAdmin,
   useEventStream,
@@ -162,6 +163,12 @@ export function Dashboard() {
     .filter((f) => !TAPE_HIDDEN.has(f.type))
     .slice(0, TAPE_ROWS);
   const assets = metrics ? Object.entries(metrics.by_asset) : [];
+  // Composite v1 frozen 2026-05-23 — its widgets (per-mode tuning, per-asset
+  // bids/fills/spread, hourly wins, loss-streak gauge, primary/secondary
+  // metric rows) only make sense while a trading mode is registered. With
+  // modes={} we observe only recorder + market discovery. Stage 2 zscore
+  // wiring will re-introduce different widgets.
+  const compositeEra = !!metrics && Object.keys(metrics.modes).length > 0;
 
   return (
     <div className="mx-auto min-h-screen max-w-[1200px] p-4">
@@ -169,7 +176,7 @@ export function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <div className="ascii-box-title">
-              BET_SYSTEM // POLYMARKET 5M FRONTIER MONITOR
+              BET_SYSTEM // POLYMARKET 15M FRONTIER MONITOR
             </div>
             <div className="text-terminal-muted text-xs mt-1">
               {metrics
@@ -195,56 +202,83 @@ export function Dashboard() {
         </div>
       </header>
 
-      <main className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-        {boxes1.map((box) => (
-          <MetricBox key={box.label} box={box} />
-        ))}
-      </main>
+      {compositeEra && (
+        <main className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+          {boxes1.map((box) => (
+            <MetricBox key={box.label} box={box} />
+          ))}
+        </main>
+      )}
 
-      <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-2">
-        {boxes2.map((box) => (
-          <MetricBox key={box.label} box={box} />
-        ))}
-      </div>
+      {!compositeEra && (
+        <main className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <MetricBox
+            box={{
+              label: "BALANCE",
+              value:
+                metrics?.capital.balance_usd != null
+                  ? `$${metrics.capital.balance_usd.toFixed(2)}`
+                  : "—",
+            }}
+          />
+          <MetricBox
+            box={{
+              label: "ACTIVE WINDOWS",
+              value: String(metrics?.active_windows ?? "—"),
+            }}
+          />
+          <MetricBox
+            box={{
+              label: "MODE",
+              value: "frozen · zscore TBD",
+            }}
+          />
+        </main>
+      )}
 
-      <AdminPanel
-        metrics={metrics}
-        isAdmin={isAdmin}
-        onAction={() => void refreshAdmin()}
-      />
-
-      <section className="mt-4">
-        <div className="ascii-box-title mb-1">Per-asset</div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          {assets.length === 0
-            ? ["BTC", "ETH", "SOL", "XRP"].map((a) => (
-                <AsciiBox key={a} title={a}>
-                  <div className="text-xs text-terminal-muted">—</div>
-                </AsciiBox>
-              ))
-            : assets.map(([asset, a]) => (
-                <AssetPanel key={asset} asset={asset} a={a} />
-              ))}
+      {compositeEra && (
+        <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-2">
+          {boxes2.map((box) => (
+            <MetricBox key={box.label} box={box} />
+          ))}
         </div>
-      </section>
+      )}
+
+      {compositeEra && (
+        <AdminPanel
+          metrics={metrics}
+          isAdmin={isAdmin}
+          onAction={() => void refreshAdmin()}
+        />
+      )}
+
+      {compositeEra && (
+        <section className="mt-4">
+          <div className="ascii-box-title mb-1">Per-asset</div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            {assets.length === 0
+              ? ["BTC", "ETH", "SOL", "XRP"].map((a) => (
+                  <AsciiBox key={a} title={a}>
+                    <div className="text-xs text-terminal-muted">—</div>
+                  </AsciiBox>
+                ))
+              : assets.map(([asset, a]) => (
+                  <AssetPanel key={asset} asset={asset} a={a} />
+                ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-2 items-start">
-        <div className="lg:col-span-2">
-          {metrics ? (
-            <HourHistogram winsByHour={metrics.wins_by_hour} />
-          ) : (
-            <AsciiBox title="Wins by hour · Kyiv">
-              <div className="text-xs text-terminal-muted">—</div>
-            </AsciiBox>
-          )}
-        </div>
-        {metrics ? (
-          <LossStreakGauge streak={metrics.pnl.loss_streak} />
-        ) : (
-          <AsciiBox title="Loss streak">
-            <div className="text-xs text-terminal-muted">—</div>
-          </AsciiBox>
+        {compositeEra && (
+          <div className="lg:col-span-2">
+            <HourHistogram winsByHour={metrics!.wins_by_hour} />
+          </div>
         )}
+        <div className={clsx("grid grid-cols-1 gap-2", !compositeEra && "lg:col-span-3 lg:grid-cols-3")}>
+          {compositeEra && <LossStreakGauge streak={metrics!.pnl.loss_streak} />}
+          <RecorderStatusBox />
+        </div>
       </section>
 
       <section className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-2 items-start">

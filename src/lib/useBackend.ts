@@ -91,6 +91,49 @@ export interface WsFrame {
   data: Record<string, unknown>;
 }
 
+/** BookRecorder status — GET /api/recorder. Polled alongside metrics so the
+ *  operator can see paper-mode book snapshots accumulating before the
+ *  PMXT-free edge backtest can run. */
+export interface RecorderStatus {
+  running: boolean;
+  path: string;
+  snapshots: number;
+  resolved: number;
+  dropped_no_book: number;
+  tracked: number;
+  file_size_bytes: number;
+}
+
+export function useRecorder(): { recorder: RecorderStatus | null; error: string | null } {
+  const [recorder, setRecorder] = useState<RecorderStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const poll = async (): Promise<void> => {
+      try {
+        const r = await fetch(`${API_URL}/api/recorder`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const body = (await r.json()) as RecorderStatus;
+        if (alive) {
+          setRecorder(body);
+          setError(null);
+        }
+      } catch (e) {
+        if (alive) setError(String(e));
+      }
+    };
+    void poll();
+    const id = setInterval(() => void poll(), METRICS_REFRESH_MS);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  return { recorder, error };
+}
+
 /** Polls /api/metrics every 5s (matches backend metrics_refresh_ms). */
 export function useMetrics(): {
   metrics: Metrics | null;
